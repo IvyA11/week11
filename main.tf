@@ -1,44 +1,54 @@
-# Define the provider for AWS
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "3.26.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.0.1"
+    }
+  }
+  required_version = ">= 1.1.0"
+
+  cloud {
+    organization = "Seneca"
+
+    workspaces {
+      name = "gh-actions-demo"
+    }
+  }
+}
+
 provider "aws" {
-  region = "us-east-1" # Use your preferred region
+  region = "us-west-2"
 }
 
-resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-  tags = {
-    Name = "Lab-VPC"
+resource "random_pet" "sg" {}
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"] # Canonical
 }
 
-# Compliant Security Group (Removes 0.0.0.0/0 ingress/egress warnings)
-resource "aws_security_group" "compliant_sg" {
-  # tfsec Note 1: Added description
-  name        = "secure_web_sg"
-  description = "Allows restricted HTTP access"
-  vpc_id      = aws_vpc.main.id
 
-  # Compliant Ingress: Restricts traffic to specific IP/CIDR (e.g., your IP block)
-  # For testing, we can restrict it to a smaller subnet, not 0.0.0.0/0
+resource "aws_security_group" "web-sg" {
+  name = "${random_pet.sg.id}-sg"
   ingress {
-    description = "HTTP access from a trusted subnet"
-    from_port   = 80
-    to_port     = 80
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["10.0.1.0/24"] # Example: Only allows traffic from within a specific subnet
-  }
-
-  # Compliant Egress: Allows only outbound traffic over port 443 (HTTPS)
-  # This makes the rule specific, resolving the "allow all" egress issue.
-  egress {
-    description = "Allow secure outbound traffic"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  # tfsec Note 2: Added tags
-  tags = {
-    Name = "Compliant-SG"
+    cidr_blocks = ["24.105.88.34/32"]
   }
 }
